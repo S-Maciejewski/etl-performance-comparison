@@ -1,8 +1,7 @@
-﻿using System.Text;
+﻿using System;
 using System.IO.Compression;
 using System.IO;
-using System;
-using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
@@ -32,7 +31,7 @@ namespace PerformanceTest
                 MaxDegreeOfParallelism = 2, // How many files do we want to download at once? How good is download speed / bandwith?
             });
 
-            var unzipBlock = new TransformBlock<MemoryStream, MemoryStream>(async memoryStream =>
+            var unzipBlock = new ActionBlock<MemoryStream>(async memoryStream =>
             {
                 ZipArchive zipArchive = new ZipArchive(memoryStream);
                 MemoryStream outputStream = new MemoryStream();
@@ -41,12 +40,12 @@ namespace PerformanceTest
                 {
                     foreach (ZipArchiveEntry entry in zipArchive.Entries)
                     {
-						// Load results to database
+                        // Load results to database
                         entry.Open().CopyTo(outputStream);
+						Encoding.ASCII.GetString(outputStream.ToArray());
                         // Console.WriteLine(Encoding.ASCII.GetString(outputStream.ToArray()));
                     }
                 });
-                return outputStream;
             },
             new ExecutionDataflowBlockOptions
             {
@@ -62,12 +61,18 @@ namespace PerformanceTest
             });
 
 
+			// Measure performance
+			var watch = System.Diagnostics.Stopwatch.StartNew();
+
             foreach (var url in testFiles)
             {
                 downloadBlock.Post(url);
             }
             downloadBlock.Complete();
             unzipBlock.Completion.GetAwaiter().GetResult();
+
+			watch.Stop();
+			Console.WriteLine(watch.ElapsedMilliseconds);
 
             System.Environment.Exit(0);
         }
